@@ -1,25 +1,29 @@
 house_ads_livewrapped_source_script_pid:
-  default: ''
+  default: '9c40dbbb-3a4e-4be6-b760-a144d5939287'
   type: string
   description:
-    en:  "Enter the source script pid"
+    en: "Enter the source script PID"
+
 house_ads_livewrapped_source_tag_id_base_string_desktop:
-  default: ''
+  default: 'rikatillsammans_desktop-panorama-#'
   type: string
   description:
-    en:  "Enter the tag id format, placing a # where the iteration number should be (desktop)"
+    en: "Enter the tag ID format, placing a # where the iteration number should be (desktop)"
+
 house_ads_livewrapped_source_tag_id_base_string_mobile:
-  default: ''
+  default: 'rikatillsammans_mobile-mobil-#'
   type: string
   description:
-    en:  "Enter the tag id format, placing a # where the iteration number should be (mobile)"
+    en: "Enter the tag ID format, placing a # where the iteration number should be (mobile)"
+
 house_ads_livewrapped_always_start_at_op:
   default: true
   type: bool
   description:
-    en: "Always start series immediately after first Post"
+    en: "Always start series immediately after the first post"
+
 house_ads_livewrapped_always_at_last_post:
   default: true
   type: bool
   description:
-    en: "Always place ad after last Post"
+    en: "Always place ad after the last post"
