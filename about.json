@@ -2,5 +2,8 @@
   "name": "House Ads Livewrapped",
   "about_url": "",
   "component": true,
-  "authors": "Robert Barrow"
+  "authors": "Robert Barrow",
+  "assets": {
+   "stylesheets": ["stylesheets/common.scss"]
+  }
 }

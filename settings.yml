@@ -16,7 +16,7 @@ house_ads_livewrapped_source_tag_id_base_string_mobile:
   description:
     en: "Enter the tag ID format, placing a # where the iteration number should be (mobile)"
 
-house_ads_livewrapped_always_start_at_top:
+house_ads_livewrapped_always_start_at_op:
   default: true
   type: bool
   description:

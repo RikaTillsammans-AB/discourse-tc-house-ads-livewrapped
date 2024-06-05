@@ -14,8 +14,7 @@ let _mainLoaded = false,
   _mainPromise = null,
   _GPTLoaded = false,
   _GPTPromise = null,
-  adCounter = 0,
-  postCounter = 0;
+  _c = 0;
 
 function loadMainAdScript(pid) {
   if (_mainLoaded) {
@@ -56,10 +55,9 @@ function loadGooglePublisherTagScript() {
 export default {
   name: "house-ads-livewrapped",
   initialize() {
-    // Access settings from `settings.yml`
-    const AD_INTERVAL = settings.house_ads_livewrapped_ad_interval; // Frequency of ads
-    const START_AT_TOP = settings.house_ads_livewrapped_always_start_at_top;
-    const AT_LAST_POST = settings.house_ads_livewrapped_always_at_last_post;
+    const AD_INTERVAL = settings.house_ads_livewrapped_ad_interval; // Use the setting value
+    let adCounter = 0; // Initialize counter for unique ad IDs
+    let postCounter = 0; // Initialize counter for posts
 
     withPluginApi("0.8.40", (api) => {
       window.lwhb = window.lwhb || { cmd: [] };
@@ -82,6 +80,7 @@ export default {
 
       api.modifyClass("component:house-ad", {
         pluginId: PLUGIN_ID,
+        // Remove classNameBindings
 
         @discourseComputed("adIndex")
         isValidAdSpot() {
@@ -124,11 +123,11 @@ export default {
           }
 
           let topicLength = this.highest_post_number;
-          let every = AD_INTERVAL; // Use the setting value
+          let every = settings.house_ads_livewrapped_ad_interval; // Use the setting value
           let baseIndex = 0;
 
           if (postNumber !== topicLength) {
-            if (START_AT_TOP) {
+            if (settings.house_ads_livewrapped_always_start_at_op) {
               baseIndex = (postNumber + every - 1) / every;
             } else {
               baseIndex = postNumber / every;
@@ -136,7 +135,7 @@ export default {
           } else {
             baseIndex = (postNumber + every - 1) / every;
 
-            if (AT_LAST_POST) {
+            if (settings.house_ads_livewrapped_always_at_last_post) {
               baseIndex = Math.ceil(baseIndex);
             }
           }
@@ -174,7 +173,7 @@ export default {
         didInsertElement() {
           this._super();
           scheduleOnce("afterRender", this, this._triggerAds);
-
+        
           if (this.element) {
             this.element.classList.add('responsive-ad'); // Add responsive-ad class
             this.element.classList.add(this.isValidAdSpot ? 'active-ad-location' : 'inactive-ad-location'); // Add valid ad spot class
@@ -209,11 +208,7 @@ export default {
         postCounter += 1;
 
         // Check if an ad should be inserted
-        const isFirstPost = postCounter === 1 && START_AT_TOP;
-        const isLastPost = postCounter === this.highest_post_number && AT_LAST_POST;
-        const isIntervalPost = (postCounter - 1) % AD_INTERVAL === 0;
-
-        if (isFirstPost || isLastPost || isIntervalPost) {
+        if (postCounter === 1 || (postCounter - 1) % AD_INTERVAL === 0) {
           adCounter += 1;
 
           const adDivId = `rikatillsammans_desktop-panorama-1_${adCounter}`;
