@@ -5,16 +5,17 @@ import { isTesting } from "discourse-common/config/environment";
 import { isBlank } from "@ember/utils";
 import loadScript from "discourse/lib/load-script";
 import RSVP from "rsvp";
-//import { contentSecurityPolicy } from "discourse/lib/content-security-policy";
 
 const PLUGIN_ID = "discourse-tc-ads-hack";
 const LIVEWRAPPED_SCRIPT_SRC = "https://lwadm.com/lw/pbjs";
 const GOOGLE_PUBLISHER_TAG_SCRIPT_SRC = "https://securepubads.g.doubleclick.net/tag/js/gpt.js";
+
 let _mainLoaded = false,
   _mainPromise = null,
   _GPTLoaded = false,
   _GPTPromise = null,
-  _c = 0;
+  adCounter = 0,
+  postCounter = 0;
 
 function loadMainAdScript(pid) {
   if (_mainLoaded) {
@@ -55,39 +56,177 @@ function loadGooglePublisherTagScript() {
 export default {
   name: "house-ads-livewrapped",
   initialize() {
-    let adCounter = 0; // Initialize counter for unique ad IDs
+    // Access settings from `settings.yml`
+    const AD_INTERVAL = settings.house_ads_livewrapped_ad_interval; // Frequency of ads
+    const START_AT_TOP = settings.house_ads_livewrapped_always_start_at_top;
+    const AT_LAST_POST = settings.house_ads_livewrapped_always_at_last_post;
+
     withPluginApi("0.8.40", (api) => {
       window.lwhb = window.lwhb || { cmd: [] };
       window.googletag = window.googletag || { cmd: [] };
-      api.decorateCookedElement(
-        (element) => {
-          if (!element) {
-            console.error("Target element not found");
-            return;
+      
+      api.onPageChange(() => {
+        window.lwhb.cmd.push(() => {
+          window.lwhb.resetPage(true);
+        });
+      });
+
+      api.modifyClass("component:ad-slot", {
+        pluginId: PLUGIN_ID,
+
+        @discourseComputed("placement", "postNumber", "indexNumber")
+        availableAdTypes(placement, postNumber, indexNumber) {
+          return ["house-ad"];
+        },
+      });
+
+      api.modifyClass("component:house-ad", {
+        pluginId: PLUGIN_ID,
+
+        @discourseComputed("adIndex")
+        isValidAdSpot() {
+          if (this.adIndex !== undefined && this.adIndex !== null && this.adIndex !== 0) {
+            return 'active-ad-location';
+          } else {
+            return 'inactive-ad-location';
+          }
+        },
+
+        _triggerAds() {
+          if (isTesting() || this.adIndex < 1 || this.adIndex === null || this.adIndex === undefined) {
+            return; // Don't load external JS during tests
           }
 
-          if (!element.classList.contains("cooked")) {
-            console.log("Element does not contain 'cooked' class:", element);
-            return;
+          loadGooglePublisherTagScript().then(() => {
+            loadMainAdScript(settings.house_ads_livewrapped_source_script_pid).then(() => {
+              window.lwhb.cmd.push(() => {
+                window.lwhb.loadAd({
+                  tagId: settings.house_ads_livewrapped_source_tag_id_base_string_desktop.replace("#", this.adIndex)
+                });
+                window.lwhb.loadAd({
+                  tagId: settings.house_ads_livewrapped_source_tag_id_base_string_mobile.replace("#", this.adIndex)
+                });
+              });
+              googletag.cmd.push(function() {
+                googletag.pubads().setForceSafeFrame(true);
+                googletag.pubads().disableInitialLoad();
+                googletag.pubads().enableSingleRequest();
+                googletag.enableServices();
+              });
+            });
+          });
+        },
+
+        @discourseComputed("postNumber", "highest_post_number")
+        adIndex(postNumber) {
+          if (postNumber === undefined || postNumber === null) {
+            return 0;
           }
 
-          // Increment the ad counter
+          let topicLength = this.highest_post_number;
+          let every = AD_INTERVAL; // Use the setting value
+          let baseIndex = 0;
+
+          if (postNumber !== topicLength) {
+            if (START_AT_TOP) {
+              baseIndex = (postNumber + every - 1) / every;
+            } else {
+              baseIndex = postNumber / every;
+            }
+          } else {
+            baseIndex = (postNumber + every - 1) / every;
+
+            if (AT_LAST_POST) {
+              baseIndex = Math.ceil(baseIndex);
+            }
+          }
+
+          if (baseIndex != Math.floor(baseIndex)) {
+            return 0;
+          }
+
+          if (baseIndex < 3) {
+            return baseIndex;
+          } else {
+            return `2_${baseIndex - 2}`;
+          }
+        },
+
+        @discourseComputed("adIndex")
+        thisDesktopId(adIndex) {
+          return settings.house_ads_livewrapped_source_tag_id_base_string_desktop.replace("#", adIndex);
+        },
+
+        @discourseComputed("adIndex")
+        thisMobileId(adIndex) {
+          return settings.house_ads_livewrapped_source_tag_id_base_string_mobile.replace("#", adIndex);
+        },
+
+        @discourseComputed("postNumber", "placement")
+        showAfterPost(postNumber, placement) {
+          if (!postNumber && placement !== "topic-list-between") {
+            return true;
+          }
+
+          return true;
+        },
+
+        didInsertElement() {
+          this._super();
+          scheduleOnce("afterRender", this, this._triggerAds);
+
+          if (this.element) {
+            this.element.classList.add('responsive-ad'); // Add responsive-ad class
+            this.element.classList.add(this.isValidAdSpot ? 'active-ad-location' : 'inactive-ad-location'); // Add valid ad spot class
+          } else {
+            console.error("Element is null or undefined");
+          }
+        },
+
+        willDestroyElement() {
+          window.lwhb.cmd.push(() => {
+            window.lwhb.removeAdUnit({
+              tagId: settings.house_ads_livewrapped_source_tag_id_base_string_desktop.replace("#", this.adIndex)
+            });
+            window.lwhb.removeAdUnit({
+              tagId: settings.house_ads_livewrapped_source_tag_id_base_string_mobile.replace("#", this.adIndex)
+            });
+          });
+        }
+      });
+
+      api.decorateCookedElement((element) => {
+        if (!element) {
+          console.error("Target element not found");
+          return;
+        }
+
+        if (!element.classList.contains("cooked")) {
+          console.log("Element does not contain 'cooked' class:", element);
+          return;
+        }
+
+        postCounter += 1;
+
+        // Check if an ad should be inserted
+        const isFirstPost = postCounter === 1 && START_AT_TOP;
+        const isLastPost = postCounter === this.highest_post_number && AT_LAST_POST;
+        const isIntervalPost = (postCounter - 1) % AD_INTERVAL === 0;
+
+        if (isFirstPost || isLastPost || isIntervalPost) {
           adCounter += 1;
 
-          // Create the unique ID for the ad div
           const adDivId = `rikatillsammans_desktop-panorama-1_${adCounter}`;
 
-          // Create the ad div
           let adDiv = document.createElement("div");
           adDiv.id = adDivId;
+          adDiv.className = "responsive-ad"; // Add a class for styling
           adDiv.style.width = "100%";
-          adDiv.style.height = "250px"; // Adjust height as necessary
+          adDiv.style.height = "auto"; // Adjust height as necessary
           adDiv.style.margin = "10px 0";
 
-          // Insert the ad div after the current post element
           element.insertBefore(adDiv, element.nextSibling);
 
-          // Schedule the script execution after rendering
           scheduleOnce("afterRender", this, () => {
             const nonce = document.querySelector('script[nonce]')?.getAttribute('nonce');
             loadGooglePublisherTagScript(nonce)
@@ -107,9 +246,8 @@ export default {
                 console.error('Error loading scripts:', error);
               });
           });
-        },
-        { class: "cooked" } // Ensure it runs for each post
-      );
+        }
+      }, { class: "cooked" });
     });
-  },
+  }
 };
