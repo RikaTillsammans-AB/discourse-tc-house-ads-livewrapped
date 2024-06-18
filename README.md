@@ -49,3 +49,9 @@ https://rikatillsammans.se/221009-ads-test.html
 </body>
 </html>
 ```
+
+Please note that ads spaces can be executed correctly but not filled by ads. To check that open Console and start
+
+`javascript:googletag.openConsole()`
+
+If correctly executed than it will say overlay status "Displayed" and have a query_id but it will say "Ad unit did not fill".
